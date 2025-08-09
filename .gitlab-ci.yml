@@ -23,7 +23,7 @@ security_checks:
     - echo "Running dummy CodeQL scan..."
     - sleep 2
     # Change '0' to '1' to simulate fail
-    - DUMMY_FAIL=0
+    - DUMMY_FAIL=1
     - if [ "$DUMMY_FAIL" -eq 1 ]; then
         echo "❌ Security checks failed!";
         exit 1;
