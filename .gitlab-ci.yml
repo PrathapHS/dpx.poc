@@ -1,0 +1,75 @@
+stages:
+  - security-checks
+  - deploy
+  - notify
+
+variables:
+  OCTOPUS_SERVER: "https://octopus.example.com" # dummy Octopus server
+  OCTOPUS_API_KEY: "API-XXXXXXXXXXXXXXXXXX"    # dummy token
+  OCTOPUS_PROJECT: "DummyProject"
+  OCTOPUS_ENV: "TestEnv"
+
+  CHERWELL_API_URL: "https://httpbin.org/post"  # httpbin echoes the payload
+  CHERWELL_API_TOKEN: "dummy-token"
+  CHERWELL_CHANGE_ID: "CR-TEST-12345"
+
+# -------------------------------
+# Simulated Security Checks
+# -------------------------------
+security_checks:
+  stage: security-checks
+  image: alpine:3.19
+  script:
+    - echo "Running dummy CodeQL scan..."
+    - sleep 2
+    # Change '0' to '1' to simulate fail
+    - DUMMY_FAIL=0
+    - if [ "$DUMMY_FAIL" -eq 1 ]; then
+        echo "❌ Security checks failed!";
+        exit 1;
+      else
+        echo "✅ Security checks passed.";
+      fi
+  allow_failure: false
+
+# -------------------------------
+# Deploy to Octopus (Dummy)
+# -------------------------------
+deploy_to_octopus:
+  stage: deploy
+  image: octopusdeploy/octo:latest
+  script:
+    - echo "Simulating Octopus release creation..."
+    - octo create-release --project "$OCTOPUS_PROJECT" --version "1.0.${CI_PIPELINE_IID}" --server "$OCTOPUS_SERVER" --apiKey "$OCTOPUS_API_KEY"
+    - octo deploy-release --project "$OCTOPUS_PROJECT" --releaseNumber "1.0.${CI_PIPELINE_IID}" --deployTo "$OCTOPUS_ENV"
+  needs:
+    - job: security_checks
+  rules:
+    - if: $CI_JOB_STATUS == "success"
+      when: on_success
+    - when: never
+
+# -------------------------------
+# Notify Cherwell on Failure (Dummy)
+# -------------------------------
+notify_cherwell:
+  stage: notify
+  image: curlimages/curl:8.5.0
+  script:
+    - echo "Simulating Cherwell notification..."
+    - curl -X POST "$CHERWELL_API_URL" \
+      -H "Authorization: Bearer $CHERWELL_API_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{
+            "busObId": "'$CHERWELL_CHANGE_ID'",
+            "fields": [
+              {"name": "Status", "value": "Security Scan Failed"},
+              {"name": "Description", "value": "CodeQL/Dependency Review failed in pipeline '$CI_PIPELINE_ID'."}
+            ]
+          }'
+  needs:
+    - job: security_checks
+  rules:
+    - if: $CI_JOB_STATUS == "failed"
+      when: on_failure
+    - when: never
